@@ -1,0 +1,14 @@
+# Real-time Demo Schema
+# A simple Message table with automatic timestamps
+
+type Message @table(database: "demo-realtime") @export(
+    name: "message"
+    rest: true
+    sse: true
+    ws: true
+) {
+    id: ID! @primaryKey
+    title: String!
+    content: String!
+    __createdAt__: String
+}
