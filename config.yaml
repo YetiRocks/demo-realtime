@@ -10,6 +10,9 @@ sse: true
 schemas:
   - schemas/realtime.graphql
 
+resources:
+  - resources/*.rs
+
 static_files:
   path: web
   route: /
