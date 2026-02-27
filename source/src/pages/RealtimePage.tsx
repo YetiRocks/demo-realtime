@@ -166,7 +166,7 @@ export function RealtimePage() {
     initialLoadRef: React.MutableRefObject<boolean>,
   ) => {
     try {
-      const response = await fetch(`${BASE_URL}/message/`)
+      const response = await fetch(`${BASE_URL}/message/?limit=50`)
       if (!response.ok) return
       const data = await response.json()
       if (Array.isArray(data)) {
@@ -241,7 +241,7 @@ export function RealtimePage() {
   const fetchRestMessages = useCallback(async (fetchRecords = false) => {
     setRestStatus('connecting')
     try {
-      const url = fetchRecords ? `${BASE_URL}/message/` : `${BASE_URL}/message`
+      const url = fetchRecords ? `${BASE_URL}/message/?limit=50` : `${BASE_URL}/message`
       const response = await fetch(url)
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       const data = await response.json()
@@ -283,13 +283,16 @@ export function RealtimePage() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await fetch(`${BASE_URL}/message/`)
+      // Fetch only current visible messages and delete them
+      const response = await fetch(`${BASE_URL}/message/?limit=200`)
       if (!response.ok) throw new Error('Failed to fetch messages')
       const messages = await response.json() as Message[]
-      for (const msg of messages) {
-        await fetch(`${BASE_URL}/message/${msg.id}`, { method: 'DELETE' })
-      }
-      await fetchRestMessages(true)
+      await Promise.all(
+        messages.map(msg => fetch(`${BASE_URL}/message/${msg.id}`, { method: 'DELETE' }))
+      )
+      setWsMessages([])
+      setSseMessages([])
+      setRestMessages([])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete messages')
     } finally {
