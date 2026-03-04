@@ -231,8 +231,6 @@ export function RealtimePage() {
     setMqttMessages([])
     try {
       const client = mqtt.connect(getMqttWsUrl(), {
-        username: 'admin',
-        password: 'admin123',
         protocolVersion: 5,
         rejectUnauthorized: false,
       })
