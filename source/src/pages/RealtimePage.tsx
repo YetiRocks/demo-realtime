@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import mqtt from 'mqtt'
 
-// Types
 interface Message {
   id: string
   title: string
@@ -10,7 +10,6 @@ interface Message {
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 
-// Get the base URL for API calls
 const BASE_URL = window.location.origin + '/demo-realtime'
 const RECONNECT_DELAY = 5000
 
@@ -21,7 +20,8 @@ const getWebSocketUrl = () => {
 
 const getSSEUrl = () => `${BASE_URL}/message/`
 
-// Sample text generators
+const getMqttWsUrl = () => `wss://${window.location.host}/mqtt`
+
 const SAMPLE_TITLES = [
   'System Update Available', 'New Feature Released', 'Server Maintenance Scheduled',
   'Database Backup Complete', 'User Feedback Received', 'Performance Metrics Updated',
@@ -39,23 +39,16 @@ const SAMPLE_CONTENTS = [
 
 const getRandomSample = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)]
 
-// Status dot component
 function StatusDot({ status }: { status: ConnectionStatus }) {
   return <span className={`status-dot ${status}`}></span>
 }
 
-// Message list panel body
 interface MessagePanelProps {
   messages: Message[]
   newIds: Set<string>
 }
 
 function MessagePanelBody({ messages, newIds }: MessagePanelProps) {
-  const formatMessageTime = (timestamp?: string) => {
-    if (!timestamp) return ''
-    return new Date(timestamp).toLocaleString()
-  }
-
   const sortedMessages = [...messages].sort((a, b) => {
     const timeA = a.__createdAt__ ? new Date(a.__createdAt__).getTime() : 0
     const timeB = b.__createdAt__ ? new Date(b.__createdAt__).getTime() : 0
@@ -76,14 +69,11 @@ function MessagePanelBody({ messages, newIds }: MessagePanelProps) {
   return (
     <div className="panel-body">
       {sortedMessages.map(msg => (
-        <div
-          key={msg.id}
-          className={`message-item ${newIds.has(msg.id) ? 'new' : ''}`}
-        >
+        <div key={msg.id} className={`message-item ${newIds.has(msg.id) ? 'new' : ''}`}>
           <div className="message-title">{msg.title}</div>
           <div className="message-content">{msg.content}</div>
           <div className="message-meta">
-            <span>{formatMessageTime(msg.__createdAt__)}</span>
+            {msg.__createdAt__ && new Date(msg.__createdAt__).toLocaleString()}
           </div>
         </div>
       ))}
@@ -92,76 +82,47 @@ function MessagePanelBody({ messages, newIds }: MessagePanelProps) {
 }
 
 export function RealtimePage() {
-  // WebSocket state
   const [wsMessages, setWsMessages] = useState<Message[]>([])
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>('connecting')
   const [wsNewIds, setWsNewIds] = useState<Set<string>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
   const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // SSE state
   const [sseMessages, setSseMessages] = useState<Message[]>([])
   const [sseStatus, setSseStatus] = useState<ConnectionStatus>('connecting')
   const [sseNewIds, setSseNewIds] = useState<Set<string>>(new Set())
   const sseRef = useRef<EventSource | null>(null)
   const sseReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // REST state
   const [restMessages, setRestMessages] = useState<Message[]>([])
   const [restStatus, setRestStatus] = useState<ConnectionStatus>('disconnected')
   const [restNewIds, setRestNewIds] = useState<Set<string>>(new Set())
 
-  const [error, setError] = useState<string | null>(null)
+  const [mqttMessages, setMqttMessages] = useState<Message[]>([])
+  const [mqttStatus, setMqttStatus] = useState<ConnectionStatus>('disconnected')
+  const [mqttNewIds, setMqttNewIds] = useState<Set<string>>(new Set())
+  const mqttRef = useRef<mqtt.MqttClient | null>(null)
 
-  // Form state
+  const [error, setError] = useState<string | null>(null)
   const [title, setTitle] = useState(getRandomSample(SAMPLE_TITLES))
   const [content, setContent] = useState(getRandomSample(SAMPLE_CONTENTS))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
-  // Track initial load
   const wsInitialLoadRef = useRef(true)
   const sseInitialLoadRef = useRef(true)
   const restInitialLoadRef = useRef(true)
+  const mqttInitialLoadRef = useRef(true)
 
   const markAsNew = (setNewIds: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) => {
     setNewIds(prev => new Set([...prev, id]))
     setTimeout(() => {
-      setNewIds(prev => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
+      setNewIds(prev => { const next = new Set(prev); next.delete(id); return next })
     }, 2000)
   }
 
-  const handleWebSocketMessage = useCallback((event: MessageEvent) => {
-    try {
-      const msg = JSON.parse(event.data)
-      const msgType = msg.type
-      const data = msg.data
-      const id = msg.id || data?.id
-
-      if (msgType === 'update' || msgType === 'put') {
-        setWsMessages(prev => {
-          const existing = prev.find(m => m.id === id)
-          if (existing) {
-            return prev.map(m => m.id === id ? data : m)
-          } else {
-            if (!wsInitialLoadRef.current) markAsNew(setWsNewIds, id)
-            return [...prev, data]
-          }
-        })
-      } else if (msgType === 'delete') {
-        setWsMessages(prev => prev.filter(m => m.id !== id))
-      }
-    } catch (err) {
-      console.error('Failed to parse WebSocket message:', err)
-    }
-  }, [])
-
-  const fetchInitialMessages = useCallback(async (
+  const fetchMessages = useCallback(async (
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
     initialLoadRef: React.MutableRefObject<boolean>,
   ) => {
@@ -176,128 +137,164 @@ export function RealtimePage() {
     } catch { /* ignore */ }
   }, [])
 
-  const fetchInitialWsMessages = useCallback(async () => {
-    await fetchInitialMessages(setWsMessages, wsInitialLoadRef)
-  }, [fetchInitialMessages])
-
+  // WebSocket
   const connectWebSocket = useCallback(() => {
     if (wsRef.current) wsRef.current.close()
     setWsStatus('connecting')
     try {
       const ws = new WebSocket(getWebSocketUrl())
       wsRef.current = ws
-      ws.onopen = () => { setWsStatus('connected'); fetchInitialWsMessages() }
-      ws.onmessage = handleWebSocketMessage
-      ws.onerror = () => {}
-      ws.onclose = (event) => {
-        setWsStatus('disconnected')
-        if (event.code !== 1000) {
-          wsReconnectRef.current = setTimeout(connectWebSocket, RECONNECT_DELAY)
-        }
+      ws.onopen = () => { setWsStatus('connected'); fetchMessages(setWsMessages, wsInitialLoadRef) }
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data)
+          const data = msg.data
+          const id = msg.id || data?.id
+          if (msg.type === 'update' || msg.type === 'put') {
+            setWsMessages(prev => {
+              const exists = prev.find(m => m.id === id)
+              if (exists) return prev.map(m => m.id === id ? data : m)
+              if (!wsInitialLoadRef.current) markAsNew(setWsNewIds, id)
+              return [...prev, data]
+            })
+          } else if (msg.type === 'delete') {
+            setWsMessages(prev => prev.filter(m => m.id !== id))
+          }
+        } catch {}
       }
-    } catch {
-      setWsStatus('disconnected')
-    }
-  }, [handleWebSocketMessage, fetchInitialWsMessages])
+      ws.onerror = () => {}
+      ws.onclose = (e) => {
+        setWsStatus('disconnected')
+        if (e.code !== 1000) wsReconnectRef.current = setTimeout(connectWebSocket, RECONNECT_DELAY)
+      }
+    } catch { setWsStatus('disconnected') }
+  }, [fetchMessages])
 
-  const fetchInitialSseMessages = useCallback(async () => {
-    await fetchInitialMessages(setSseMessages, sseInitialLoadRef)
-  }, [fetchInitialMessages])
-
+  // SSE
   const connectSSE = useCallback(() => {
     if (sseRef.current) sseRef.current.close()
     setSseStatus('connecting')
-    const eventSource = new EventSource(getSSEUrl())
-    sseRef.current = eventSource
-
-    eventSource.onopen = () => { setSseStatus('connected'); fetchInitialSseMessages() }
-
-    eventSource.addEventListener('update', (event) => {
+    const es = new EventSource(getSSEUrl())
+    sseRef.current = es
+    es.onopen = () => { setSseStatus('connected'); fetchMessages(setSseMessages, sseInitialLoadRef) }
+    es.addEventListener('update', (event) => {
       try {
         const data = JSON.parse(event.data) as Message
         setSseMessages(prev => {
-          const existing = prev.find(m => m.id === data.id)
-          if (existing) return prev.map(m => m.id === data.id ? data : m)
+          if (prev.find(m => m.id === data.id)) return prev.map(m => m.id === data.id ? data : m)
           if (!sseInitialLoadRef.current) markAsNew(setSseNewIds, data.id)
           return [...prev, data]
         })
-      } catch { /* ignore */ }
+      } catch {}
     })
-
-    eventSource.addEventListener('delete', (event) => {
+    es.addEventListener('delete', (event) => {
       try {
         const data = JSON.parse(event.data) as { id: string }
         setSseMessages(prev => prev.filter(m => m.id !== data.id))
-      } catch { /* ignore */ }
+      } catch {}
     })
-
-    eventSource.onerror = () => {
+    es.onerror = () => {
       setSseStatus('disconnected')
-      eventSource.close()
+      es.close()
       sseReconnectRef.current = setTimeout(connectSSE, RECONNECT_DELAY)
     }
-  }, [fetchInitialSseMessages])
+  }, [fetchMessages])
 
-  const fetchRestMessages = useCallback(async (fetchRecords = false) => {
+  // REST (one-time fetch)
+  const fetchRestMessages = useCallback(async () => {
     setRestStatus('connecting')
     try {
-      const url = fetchRecords ? `${BASE_URL}/message/?limit=50` : `${BASE_URL}/message`
-      const response = await fetch(url)
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      const response = await fetch(`${BASE_URL}/message/?limit=50`)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
-      if (data && typeof data === 'object' && 'attributes' in data) {
-        setRestStatus('connected')
-        return
-      }
-      const messages = data as Message[]
+      if (!Array.isArray(data)) { setRestStatus('connected'); return }
       setRestStatus('connected')
       setRestMessages(prevMessages => {
         const prevIds = new Set(prevMessages.map(m => m.id))
         if (!restInitialLoadRef.current) {
-          messages.filter(msg => !prevIds.has(msg.id)).forEach(msg => markAsNew(setRestNewIds, msg.id))
+          data.filter(msg => !prevIds.has(msg.id)).forEach(msg => markAsNew(setRestNewIds, msg.id))
         } else {
           restInitialLoadRef.current = false
         }
-        return messages
+        return data
       })
     } catch (err) {
       setRestStatus('disconnected')
-      setError(err instanceof Error ? err.message : 'Failed to fetch messages')
+      setError(err instanceof Error ? err.message : 'Failed to fetch')
     }
   }, [])
 
+  // MQTT
+  const connectMqtt = useCallback(() => {
+    if (mqttRef.current) { mqttRef.current.end(true); mqttRef.current = null }
+    setMqttStatus('connecting')
+    setMqttMessages([])
+    try {
+      const client = mqtt.connect(getMqttWsUrl(), {
+        username: 'admin',
+        password: 'admin123',
+        protocolVersion: 5,
+        rejectUnauthorized: false,
+      })
+      mqttRef.current = client
+      client.on('connect', () => {
+        setMqttStatus('connected')
+        client.subscribe('demo-realtime/Message/#')
+        client.subscribe('demo-realtime/Message')
+        fetchMessages(setMqttMessages, mqttInitialLoadRef)
+      })
+      client.on('message', (_topic: string, payload: Buffer) => {
+        try {
+          const msg = JSON.parse(payload.toString())
+          const data = msg.data as Message
+          const id = msg.id || data?.id
+          if (msg.type === 'update' || msg.type === 'retained') {
+            setMqttMessages(prev => {
+              if (prev.find(m => m.id === id)) return prev.map(m => m.id === id ? data : m)
+              if (!mqttInitialLoadRef.current) markAsNew(setMqttNewIds, id)
+              return [...prev, data]
+            })
+          } else if (msg.type === 'delete') {
+            setMqttMessages(prev => prev.filter(m => m.id !== id))
+          }
+        } catch {}
+      })
+      client.on('error', () => setMqttStatus('disconnected'))
+      client.on('close', () => setMqttStatus('disconnected'))
+    } catch { setMqttStatus('disconnected') }
+  }, [fetchMessages])
+
+  // Connect everything on mount
   useEffect(() => {
     connectWebSocket()
     connectSSE()
-    fetchRestMessages(true)
+    fetchRestMessages()
+    connectMqtt()
     return () => {
       if (wsRef.current) wsRef.current.close(1000)
       if (sseRef.current) sseRef.current.close()
       if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current)
       if (sseReconnectRef.current) clearTimeout(sseReconnectRef.current)
+      if (mqttRef.current) { mqttRef.current.end(true); mqttRef.current = null }
     }
-  }, [connectWebSocket, connectSSE, fetchRestMessages])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleDeleteAll = async () => {
     setShowDeleteModal(false)
     setIsSubmitting(true)
     setError(null)
     try {
-      // Fetch only current visible messages and delete them
       const response = await fetch(`${BASE_URL}/message/?limit=200`)
-      if (!response.ok) throw new Error('Failed to fetch messages')
+      if (!response.ok) throw new Error('Failed to fetch')
       const messages = await response.json() as Message[]
-      await Promise.all(
-        messages.map(msg => fetch(`${BASE_URL}/message/${msg.id}`, { method: 'DELETE' }))
-      )
-      setWsMessages([])
-      setSseMessages([])
-      setRestMessages([])
+      await Promise.all(messages.map(msg =>
+        fetch(`${BASE_URL}/message/${msg.id}`, { method: 'DELETE' })
+      ))
+      setWsMessages([]); setSseMessages([]); setRestMessages([]); setMqttMessages([])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete messages')
-    } finally {
-      setIsSubmitting(false)
-    }
+      setError(err instanceof Error ? err.message : 'Failed to delete')
+    } finally { setIsSubmitting(false) }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -318,26 +315,21 @@ export function RealtimePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message)
       })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to create message')
-      }
+      if (!response.ok) throw new Error(await response.text() || 'Failed to create')
       setTitle(getRandomSample(SAMPLE_TITLES))
       setContent(getRandomSample(SAMPLE_CONTENTS))
       setShowValidation(false)
-      await fetchRestMessages(true)
+      await fetchRestMessages()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setIsSubmitting(false)
-    }
+    } finally { setIsSubmitting(false) }
   }
 
   return (
     <>
-      {/* Toolbar: form + actions */}
       <div className="toolbar">
-        <form onSubmit={handleSubmit} className="toolbar-form">
+        <div className="toolbar-left" />
+        <form onSubmit={handleSubmit} className="toolbar-center">
           <input
             type="text"
             className={`toolbar-input ${showValidation && !title.trim() ? 'error' : ''}`}
@@ -355,21 +347,16 @@ export function RealtimePage() {
           <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
             {isSubmitting ? 'Posting...' : 'POST'}
           </button>
-        </form>
-        <div className="toolbar-actions">
           {error && <span className="toolbar-error">{error}</span>}
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="btn btn-sm"
-            disabled={isSubmitting}
-          >
+        </form>
+        <div className="toolbar-right">
+          <button onClick={() => setShowDeleteModal(true)} className="btn btn-sm" disabled={isSubmitting}>
             Delete All
           </button>
         </div>
       </div>
 
-      <main className="main-container">
-        {/* WebSocket panel */}
+      <main className="main-container cols-4">
         <div className="panel">
           <div className="panel-header">
             <div className="panel-header-left">
@@ -381,7 +368,6 @@ export function RealtimePage() {
           <MessagePanelBody messages={wsMessages} newIds={wsNewIds} />
         </div>
 
-        {/* SSE panel */}
         <div className="panel">
           <div className="panel-header">
             <div className="panel-header-left">
@@ -393,7 +379,6 @@ export function RealtimePage() {
           <MessagePanelBody messages={sseMessages} newIds={sseNewIds} />
         </div>
 
-        {/* REST panel */}
         <div className="panel">
           <div className="panel-header">
             <div className="panel-header-left">
@@ -404,15 +389,24 @@ export function RealtimePage() {
           </div>
           <MessagePanelBody messages={restMessages} newIds={restNewIds} />
         </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div className="panel-header-left">
+              <StatusDot status={mqttStatus} />
+              <span className="panel-title">MQTT/WS</span>
+            </div>
+            <span className="panel-badge">{mqttMessages.length}</span>
+          </div>
+          <MessagePanelBody messages={mqttMessages} newIds={mqttNewIds} />
+        </div>
       </main>
 
       {showDeleteModal && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2 className="modal-title">Delete All Messages?</h2>
-            <p className="modal-message">
-              This will permanently delete all messages. This action cannot be undone.
-            </p>
+            <p className="modal-message">This will permanently delete all messages.</p>
             <div className="modal-actions">
               <button onClick={() => setShowDeleteModal(false)} className="btn btn-cancel">Cancel</button>
               <button onClick={handleDeleteAll} className="btn btn-primary">Delete All</button>

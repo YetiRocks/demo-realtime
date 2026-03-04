@@ -1,7 +1,7 @@
 name: "Realtime Demo"
 app_id: "demo-realtime"
 version: "1.0.0"
-description: "Side-by-side comparison of WebSocket, Server-Sent Events, and REST polling"
+description: "Side-by-side comparison of WebSocket, Server-Sent Events, REST polling, and MQTT"
 enabled: true
 rest: true
 ws: true
@@ -12,6 +12,13 @@ schemas:
 
 resources:
   - resources/*.rs
+
+authLoader:
+  roles: data/roles.json
+  users: data/users.json
+
+extensions:
+  - yeti-auth: {}
 
 static_files:
   path: web

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "admin",
+    "name": "Admin",
+    "permission": {
+      "databases": {
+        "demo-realtime": {
+          "tables": {
+            "Message": {
+              "read": true,
+              "insert": true,
+              "update": true,
+              "delete": true
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "viewer",
+    "name": "Viewer",
+    "permission": {
+      "databases": {
+        "demo-realtime": {
+          "tables": {
+            "Message": {
+              "read": true,
+              "insert": true,
+              "update": false,
+              "delete": false,
+              "attribute_permissions": {
+                "content": {
+                  "read": false,
+                  "write": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+]
