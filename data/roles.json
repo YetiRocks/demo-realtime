@@ -3,15 +3,11 @@
     "id": "admin",
     "name": "Admin",
     "permission": {
+      "super_user": true,
       "databases": {
         "demo-realtime": {
           "tables": {
-            "Message": {
-              "read": true,
-              "insert": true,
-              "update": true,
-              "delete": true
-            }
+            "Message": { "read": true, "insert": true, "update": true, "delete": true }
           }
         }
       }
@@ -25,15 +21,9 @@
         "demo-realtime": {
           "tables": {
             "Message": {
-              "read": true,
-              "insert": true,
-              "update": false,
-              "delete": false,
+              "read": true, "insert": true, "update": false, "delete": false,
               "attribute_permissions": {
-                "content": {
-                  "read": false,
-                  "write": false
-                }
+                "content": { "read": false, "write": false }
               }
             }
           }
