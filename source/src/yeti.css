@@ -379,6 +379,25 @@ body {
   animation: pulse 2s infinite;
 }
 
+.status-dot.disabled {
+  background: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.disabled-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+}
+
+.disabled-hint code {
+  background: var(--color-white-overlay);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

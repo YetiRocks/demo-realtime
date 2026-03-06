@@ -8,7 +8,7 @@ interface Message {
   __createdAt__?: string
 }
 
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'disabled'
 
 const BASE_URL = window.location.origin + '/demo-realtime'
 const RECONNECT_DELAY = 5000
@@ -225,10 +225,23 @@ export function RealtimePage() {
   }, [])
 
   // MQTT
-  const connectMqtt = useCallback(() => {
+  const connectMqtt = useCallback(async () => {
     if (mqttRef.current) { mqttRef.current.end(true); mqttRef.current = null }
     setMqttStatus('connecting')
     setMqttMessages([])
+
+    // Check if MQTT broker is enabled before attempting connection
+    try {
+      const healthRes = await fetch('/health')
+      if (healthRes.ok) {
+        const health = await healthRes.json()
+        if (!health.mqtt?.enabled) {
+          setMqttStatus('disabled')
+          return
+        }
+      }
+    } catch { /* proceed with connection attempt */ }
+
     try {
       const client = mqtt.connect(getMqttWsUrl(), {
         protocolVersion: 5,
@@ -396,7 +409,17 @@ export function RealtimePage() {
             </div>
             <span className="panel-badge">{mqttMessages.length}</span>
           </div>
-          <MessagePanelBody messages={mqttMessages} newIds={mqttNewIds} />
+          {mqttStatus === 'disabled' ? (
+            <div className="panel-body empty-state">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <p>MQTT broker is not enabled</p>
+              <p className="disabled-hint">Set <code>mqtt.enabled: true</code> in yeti-config.yaml</p>
+            </div>
+          ) : (
+            <MessagePanelBody messages={mqttMessages} newIds={mqttNewIds} />
+          )}
         </div>
       </main>
 
