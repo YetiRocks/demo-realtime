@@ -7,7 +7,7 @@ type Message @table(database: "demo-realtime") @export(
     sse: true
     ws: true
     mqtt: true
-    public: [read, create, subscribe, connect]
+    public: [read, create, delete, subscribe, connect]
 ) {
     id: ID! @primaryKey
     title: String!

@@ -10,16 +10,6 @@ sse: true
 schemas:
   - schemas/realtime.graphql
 
-resources:
-  - resources/*.rs
-
-authLoader:
-  roles: data/roles.json
-  users: data/users.json
-
-extensions:
-  - yeti-auth: {}
-
 static_files:
   path: web
   route: /
