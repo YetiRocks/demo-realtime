@@ -6,10 +6,10 @@
 
 # demo-realtime
 
-[![Yeti](https://img.shields.io/badge/Yeti-Application-blue)](https://yetirocks.com)
+[![Yeti](https://img.shields.io/badge/Yeti-Demo-blue)](https://yetirocks.com/demo-realtime)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **[Yeti](https://yetirocks.com)** — The Performance Platform for Agent-Driven Development.
+> **[Yeti](https://yetirocks.com)** - The Performance Platform for Agent-Driven Development.
 > Schema-driven APIs, real-time streaming, and vector search. From prompt to production.
 
 Side-by-side comparison of WebSocket, Server-Sent Events, and REST polling. Send a message and watch all three channels update simultaneously.
