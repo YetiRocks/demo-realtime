@@ -10,7 +10,7 @@
 .realtime .toolbar-input { padding: var(--space-1) var(--space-3); font-size: var(--font-size-xs); font-family: var(--font-family-base); background: var(--color-white-overlay); border: 1px solid var(--color-border-primary); border-radius: var(--radius-md); color: var(--color-white); outline: none; width: 140px; transition: border-color var(--transition-fast); }
 .realtime .toolbar-input-wide { width: 200px; }
 .realtime .toolbar-input::placeholder { color: var(--color-grey); }
-.realtime .toolbar-input:focus { border-color: rgba(255, 0, 255, 0.4); }
+.realtime .toolbar-input:focus { border-color: color-mix(in srgb, var(--color-primary) 40%, transparent); }
 .realtime .toolbar-input.error { border-color: var(--color-error); }
 .realtime .toolbar-actions { display: flex; align-items: center; gap: var(--space-2); }
 .realtime .toolbar-error { font-size: var(--font-size-xs); color: var(--color-error); white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
@@ -34,4 +34,24 @@
   .realtime .main-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== Disabled state (MQTT panel) ===== */
+.status-dot.disabled {
+  background: var(--color-grey);
+  opacity: 0.5;
+}
+
+.disabled-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-grey);
+  margin-top: var(--space-2);
+}
+
+.disabled-hint code {
+  background: var(--color-white-overlay);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
 }
