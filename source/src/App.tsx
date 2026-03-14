@@ -1,5 +1,6 @@
 import Footer from './components/Footer'
 import { RealtimePage } from './pages/RealtimePage'
+import './theme'
 
 export default function App() {
   return (
