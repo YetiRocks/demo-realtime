@@ -103,6 +103,13 @@ export function RealtimePage() {
   const [mqttNewIds, setMqttNewIds] = useState<Set<string>>(new Set())
   const mqttRef = useRef<mqtt.MqttClient | null>(null)
 
+  const [grpcMessages, setGrpcMessages] = useState<Message[]>([])
+  const [grpcStatus, setGrpcStatus] = useState<ConnectionStatus>('disconnected')
+  const [grpcNewIds, setGrpcNewIds] = useState<Set<string>>(new Set())
+  const grpcSseRef = useRef<EventSource | null>(null)
+  const grpcReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const grpcInitialLoadRef = useRef(true)
+
   const [error, setError] = useState<string | null>(null)
   const [title, setTitle] = useState(getRandomSample(SAMPLE_TITLES))
   const [content, setContent] = useState(getRandomSample(SAMPLE_CONTENTS))
@@ -235,7 +242,7 @@ export function RealtimePage() {
       const healthRes = await fetch('/health')
       if (healthRes.ok) {
         const health = await healthRes.json()
-        if (!health.mqtt?.enabled) {
+        if (!health.interfaces?.mqtt?.enabled) {
           setMqttStatus('disabled')
           return
         }
@@ -275,17 +282,64 @@ export function RealtimePage() {
     } catch { setMqttStatus('disconnected') }
   }, [fetchMessages])
 
+  // gRPC (via SSE relay - browser cannot speak gRPC natively)
+  const connectGrpc = useCallback(async () => {
+    if (grpcSseRef.current) grpcSseRef.current.close()
+    setGrpcStatus('connecting')
+
+    // Check if gRPC is enabled
+    try {
+      const healthRes = await fetch('/health')
+      if (healthRes.ok) {
+        const health = await healthRes.json()
+        if (!health.interfaces?.grpc?.enabled) {
+          setGrpcStatus('disabled')
+          return
+        }
+      }
+    } catch { /* proceed */ }
+
+    // Subscribe via SSE - same data path as gRPC Subscribe RPC
+    const es = new EventSource(getSSEUrl())
+    grpcSseRef.current = es
+    es.onopen = () => { setGrpcStatus('connected'); fetchMessages(setGrpcMessages, grpcInitialLoadRef) }
+    es.addEventListener('update', (event) => {
+      try {
+        const data = JSON.parse(event.data) as Message
+        setGrpcMessages(prev => {
+          if (prev.find(m => m.id === data.id)) return prev.map(m => m.id === data.id ? data : m)
+          if (!grpcInitialLoadRef.current) markAsNew(setGrpcNewIds, data.id)
+          return [...prev, data]
+        })
+      } catch {}
+    })
+    es.addEventListener('delete', (event) => {
+      try {
+        const data = JSON.parse(event.data) as { id: string }
+        setGrpcMessages(prev => prev.filter(m => m.id !== data.id))
+      } catch {}
+    })
+    es.onerror = () => {
+      setGrpcStatus('disconnected')
+      es.close()
+      grpcReconnectRef.current = setTimeout(connectGrpc, RECONNECT_DELAY)
+    }
+  }, [fetchMessages])
+
   // Connect everything on mount
   useEffect(() => {
     connectWebSocket()
     connectSSE()
     fetchRestMessages()
     connectMqtt()
+    connectGrpc()
     return () => {
       if (wsRef.current) wsRef.current.close(1000)
       if (sseRef.current) sseRef.current.close()
+      if (grpcSseRef.current) grpcSseRef.current.close()
       if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current)
       if (sseReconnectRef.current) clearTimeout(sseReconnectRef.current)
+      if (grpcReconnectRef.current) clearTimeout(grpcReconnectRef.current)
       if (mqttRef.current) { mqttRef.current.end(true); mqttRef.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -302,7 +356,7 @@ export function RealtimePage() {
       await Promise.all(messages.map(msg =>
         fetch(`${BASE_URL}/message/${msg.id}`, { method: 'DELETE' })
       ))
-      setWsMessages([]); setSseMessages([]); setRestMessages([]); setMqttMessages([])
+      setWsMessages([]); setSseMessages([]); setRestMessages([]); setMqttMessages([]); setGrpcMessages([])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete')
     } finally { setIsSubmitting(false) }
@@ -399,6 +453,27 @@ export function RealtimePage() {
             <span className="panel-badge">{restMessages.length}</span>
           </div>
           <MessagePanelBody messages={restMessages} newIds={restNewIds} />
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <div className="panel-header-left">
+              <StatusDot status={grpcStatus} />
+              <span className="panel-title">gRPC Stream</span>
+            </div>
+            <span className="panel-badge">{grpcMessages.length}</span>
+          </div>
+          {grpcStatus === 'disabled' ? (
+            <div className="panel-body empty-state">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <p>gRPC is not enabled</p>
+              <p className="disabled-hint">Set <code>grpc.enabled: true</code> in yeti-config.yaml</p>
+            </div>
+          ) : (
+            <MessagePanelBody messages={grpcMessages} newIds={grpcNewIds} />
+          )}
         </div>
 
         <div className="panel">

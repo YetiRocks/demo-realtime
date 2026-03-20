@@ -51,12 +51,7 @@ demo-realtime/
 name: "Realtime Demo"
 app_id: "demo-realtime"
 version: "1.0.0"
-description: "Side-by-side comparison of WebSocket, Server-Sent Events, and REST polling"
-enabled: true
-rest: true
-ws: true
-sse: true
-
+description: "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC streaming, and MQTT"
 schemas:
   - schemas/realtime.graphql
 
@@ -64,11 +59,11 @@ static_files:
   path: web
   route: /
   index: index.html
-  notFound:
+  not_found:
     file: index.html
     statusCode: 200
   build:
-    sourceDir: source
+    source_dir: source
     command: npm run build
 ```
 
