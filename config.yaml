@@ -7,11 +7,7 @@ schemas:
 
 static_files:
   path: web
-  route: /
-  index: index.html
-  not_found:
-    file: index.html
-    statusCode: 200
+  spa: true
   build:
     source_dir: source
     command: npm run build
