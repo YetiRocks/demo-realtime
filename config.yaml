@@ -9,5 +9,5 @@ static_files:
   path: web
   spa: true
   build:
-    source_dir: source
+    sourceDir: source
     command: npm run build
