@@ -1,5 +1,6 @@
 name: "Realtime Demo"
 app_id: "demo-realtime"
+customer_id: "yeti"
 version: "1.0.0"
 description: "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC streaming, and MQTT"
 schemas:
