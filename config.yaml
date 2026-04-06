@@ -4,11 +4,12 @@ customer_id: "yeti"
 version: "1.0.0"
 description: "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC streaming, and MQTT"
 schemas:
-  - schemas/realtime.graphql
+  path: schemas/realtime.graphql
 
-static_files:
+static:
   path: web
+  route: /
   spa: true
   build:
-    sourceDir: source
+    source: source
     command: npm run build
