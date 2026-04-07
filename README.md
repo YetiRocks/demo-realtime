@@ -46,12 +46,12 @@ Restart yeti. The frontend builds automatically on first load (~30 seconds for n
 
 ### 2. Open the dashboard
 
-Navigate to `https://localhost/demo-realtime/` in your browser. You will see five panels -- WebSocket, SSE, REST Poll, gRPC Stream, and MQTT/WS -- each with a connection status indicator.
+Navigate to `https://localhost:9996/demo-realtime/` in your browser. You will see five panels -- WebSocket, SSE, REST Poll, gRPC Stream, and MQTT/WS -- each with a connection status indicator.
 
 ### 3. Create a message via REST
 
 ```bash
-curl -s -X POST https://localhost/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message \
   -H "Content-Type: application/json" \
   -d '{
     "id": "msg_001",
@@ -77,13 +77,13 @@ All five dashboard panels update simultaneously.
 Open a second terminal and subscribe to the SSE stream:
 
 ```bash
-curl -N https://localhost/demo-realtime/message/
+curl -N https://localhost:9996/demo-realtime/message/
 ```
 
 The connection stays open. Now post another message from a third terminal:
 
 ```bash
-curl -s -X POST https://localhost/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message \
   -H "Content-Type: application/json" \
   -d '{"id": "msg_002", "title": "SSE test", "content": "Watch the other terminal"}'
 ```
@@ -120,7 +120,7 @@ The subscriber terminal receives the message. The dashboard MQTT panel also upda
 Using `websocat` (install via `brew install websocat`):
 
 ```bash
-websocat wss://localhost/demo-realtime/message/ --insecure
+websocat wss://localhost:9996/demo-realtime/message/ --insecure
 ```
 
 Messages posted via REST, MQTT, or the dashboard form appear as JSON frames:
@@ -132,7 +132,7 @@ Messages posted via REST, MQTT, or the dashboard form appear as JSON frames:
 ### 7. List all messages via REST
 
 ```bash
-curl -s https://localhost/demo-realtime/message/?limit=50 | python3 -m json.tool
+curl -s https://localhost:9996/demo-realtime/message/?limit=50 | python3 -m json.tool
 ```
 
 Response:
@@ -156,7 +156,7 @@ Response:
 ### 8. Delete a message
 
 ```bash
-curl -s -X DELETE https://localhost/demo-realtime/message/msg_001
+curl -s -X DELETE https://localhost:9996/demo-realtime/message/msg_001
 ```
 
 All connected SSE, WebSocket, and MQTT subscribers receive a `delete` event. The dashboard panels remove the message in real time.
@@ -383,7 +383,7 @@ The MQTT and gRPC panels require their respective interfaces to be enabled in th
 
 ```yaml
 interfaces:
-  port: 443
+  port: 9996
   mqtt:
     enabled: true
     port: 8883
@@ -466,26 +466,26 @@ Output goes to `../web/` which yeti serves as static files. On restart, yeti det
 
 ```bash
 # Create
-curl -s -X POST https://localhost/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message \
   -H "Content-Type: application/json" \
   -d '{"id":"test_1","title":"Test","content":"Hello"}'
 
 # Read
-curl -s https://localhost/demo-realtime/message/test_1
+curl -s https://localhost:9996/demo-realtime/message/test_1
 
 # Update
-curl -s -X PUT https://localhost/demo-realtime/message/test_1 \
+curl -s -X PUT https://localhost:9996/demo-realtime/message/test_1 \
   -H "Content-Type: application/json" \
   -d '{"id":"test_1","title":"Updated","content":"Modified"}'
 
 # Delete
-curl -s -X DELETE https://localhost/demo-realtime/message/test_1
+curl -s -X DELETE https://localhost:9996/demo-realtime/message/test_1
 
 # List
-curl -s https://localhost/demo-realtime/message/?limit=10
+curl -s https://localhost:9996/demo-realtime/message/?limit=10
 
 # Stream (SSE -- hold open)
-curl -N https://localhost/demo-realtime/message/
+curl -N https://localhost:9996/demo-realtime/message/
 ```
 
 ---
