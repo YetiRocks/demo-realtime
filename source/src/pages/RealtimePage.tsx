@@ -14,10 +14,10 @@ const RECONNECT_DELAY = 5000
 
 const getWebSocketUrl = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}${RESOURCE_ROUTE}/message/`
+  return `${protocol}//${window.location.host}${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/`
 }
 
-const getSSEUrl = () => `${RESOURCE_ROUTE}/message/`
+const getSSEUrl = () => `${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/`
 
 const getMqttWsUrl = () => `wss://${window.location.host}/mqtt`
 
@@ -133,7 +133,7 @@ export function RealtimePage() {
     initialLoadRef: React.MutableRefObject<boolean>,
   ) => {
     try {
-      const response = await fetch(`${RESOURCE_ROUTE}/message/?limit=50`)
+      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/?limit=50`)
       if (!response.ok) return
       const data = await response.json()
       if (Array.isArray(data)) {
@@ -210,7 +210,7 @@ export function RealtimePage() {
   const fetchRestMessages = useCallback(async () => {
     setRestStatus('connecting')
     try {
-      const response = await fetch(`${RESOURCE_ROUTE}/message/?limit=50`)
+      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/?limit=50`)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
       if (!Array.isArray(data)) { setRestStatus('connected'); return }
@@ -349,11 +349,11 @@ export function RealtimePage() {
     setIsSubmitting(true)
     setError(null)
     try {
-      const response = await fetch(`${RESOURCE_ROUTE}/message/?limit=200`)
+      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/?limit=200`)
       if (!response.ok) throw new Error('Failed to fetch')
       const messages = await response.json() as Message[]
       await Promise.all(messages.map(msg =>
-        fetch(`${RESOURCE_ROUTE}/message/${msg.id}`, { method: 'DELETE' })
+        fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/${msg.id}`, { method: 'DELETE' })
       ))
       setWsMessages([]); setSseMessages([]); setRestMessages([]); setMqttMessages([]); setGrpcMessages([])
     } catch (err) {
@@ -374,7 +374,7 @@ export function RealtimePage() {
         content: content.trim(),
         __createdAt__: new Date().toISOString()
       }
-      const response = await fetch(`${RESOURCE_ROUTE}/message`, {
+      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message)

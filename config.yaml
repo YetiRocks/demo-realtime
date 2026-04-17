@@ -6,10 +6,14 @@ description: "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC stre
 schemas:
   path: schemas/realtime.graphql
 
+resources:
+  path: []
+  root: /api
+
 static:
   path: web
-  route: /
+  root: /
   spa: true
   build:
     source: source
-    command: npm run build
+    command: npm install && npm run build
