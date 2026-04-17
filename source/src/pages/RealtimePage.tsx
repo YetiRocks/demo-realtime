@@ -241,7 +241,7 @@ export function RealtimePage() {
       const healthRes = await fetch('/health')
       if (healthRes.ok) {
         const health = await healthRes.json()
-        if (!health.interfaces?.mqtt?.enabled) {
+        if (!health.mqtt_enabled) {
           setMqttStatus('disabled')
           return
         }
@@ -291,7 +291,7 @@ export function RealtimePage() {
       const healthRes = await fetch('/health')
       if (healthRes.ok) {
         const health = await healthRes.json()
-        if (!health.interfaces?.grpc?.enabled) {
+        if (!health.grpc_enabled) {
           setGrpcStatus('disabled')
           return
         }
