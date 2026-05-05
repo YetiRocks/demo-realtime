@@ -244,7 +244,7 @@ Native MQTT 5.0 broker with TLS. The browser connects via WebSocket proxy; exter
 
 - Topic: `demo-realtime/Message` and `demo-realtime/Message/#`
 - Protocol version 5 with clean session semantics
-- Health check gate: panel shows "disabled" if MQTT broker is not enabled in `yeti-config.yaml`
+- Health check gate: panel shows "disabled" if the MQTT broker is not enabled in the global yeti config
 - Message format: `{"type": "update"|"delete", "id": "...", "data": {...}}`
 
 Enable the MQTT broker in `~/yeti/yeti-config.yaml`:
@@ -260,7 +260,7 @@ interfaces:
 
 gRPC server streaming for high-performance subscriptions. Since browsers cannot speak native gRPC, the dashboard uses an SSE relay that mirrors the gRPC Subscribe RPC data path.
 
-- Health check gate: panel shows "disabled" if gRPC is not enabled in `yeti-config.yaml`
+- Health check gate: panel shows "disabled" if gRPC is not enabled in the global yeti config
 - Same event semantics as SSE (`update`, `delete`)
 - Production clients use native gRPC for lower overhead and binary serialization
 
@@ -283,7 +283,7 @@ A single-page React application built with Vite, served as static files by yeti.
 - "Delete All" bulk operation with confirmation modal
 - New message highlight animation (2-second fade)
 - Newest-first sort by `__createdAt__` timestamp
-- SPA routing with automatic base path detection from `config.yaml`
+- SPA routing with automatic base path detection from `Cargo.toml`
 
 ---
 
@@ -349,50 +349,33 @@ From this single schema declaration, yeti generates:
 
 ## Configuration
 
-### config.yaml
+App configuration lives in `Cargo.toml` under `[package.metadata.app]`. There is no separate `config.yaml` or `services.yaml`.
 
-```yaml
-name: "Realtime Demo"
-app_id: "demo-realtime"
-version: "1.0.0"
-description: "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC streaming, and MQTT"
-schemas:
-  path: schemas/realtime.graphql
+```toml
+[package]
+name = "demo-realtime"
+version = "1.0.0"
+description = "Side-by-side comparison of WebSocket, SSE, REST polling, gRPC streaming, and MQTT"
 
-static:
-  path: web
-  route: /
-  spa: true
-  build:
-    source: source
-    command: npm run build
+[package.metadata.app]
+schemas = "schemas/realtime.graphql"
+static = { path = "web", source = "source", spa = true, build = "npm install && npm run build" }
 ```
 
 | Key | Value | Description |
 |-----|-------|-------------|
-| `app_id` | `demo-realtime` | URL prefix for all endpoints |
+| `package.name` | `demo-realtime` | URL prefix for all endpoints (also the crate name) |
 | `schemas` | `schemas/realtime.graphql` | Schema file defining the Message table |
-| `static_files.path` | `web` | Directory containing built frontend assets |
-| `static_files.spa` | `true` | SPA mode -- serves `index.html` for all unmatched routes |
-| `static_files.build.sourceDir` | `source` | React/Vite source directory |
-| `static_files.build.command` | `npm run build` | Build command executed on first load |
+| `static.path` | `web` | Directory containing built frontend assets |
+| `static.spa` | `true` | SPA mode -- serves `index.html` for all unmatched routes |
+| `static.source` | `source` | React/Vite source directory |
+| `static.build` | `npm install && npm run build` | Build command executed on first load |
 
 ### Optional: Enable MQTT and gRPC
 
-The MQTT and gRPC panels require their respective interfaces to be enabled in the global yeti configuration at `~/yeti/yeti-config.yaml`:
+The MQTT and gRPC panels require their respective interfaces to be enabled in the global yeti configuration. Without these, the dashboard panels display a "not enabled" state with configuration hints.
 
-```yaml
-interfaces:
-  port: 9996
-  mqtt:
-    enabled: true
-    port: 8883
-  grpc:
-    enabled: true
-    port: 50051
-```
-
-Without these, the dashboard panels display a "not enabled" state with configuration hints.
+The MQTT broker is exposed at `mqtts://localhost:8883` (TCP) and `wss://localhost:9996/mqtt` (WebSocket proxy). The gRPC service runs on port `50051`.
 
 ### TLS
 
@@ -413,7 +396,7 @@ MQTT clients connecting via `mosquitto_sub`/`mosquitto_pub` need `--cafile` poin
 
 ```
 demo-realtime/
-├── config.yaml                  # App configuration
+├── Cargo.toml                   # App configuration under [package.metadata.app]
 ├── schemas/
 │   └── realtime.graphql         # Message table with 5-transport export
 └── source/                      # React/Vite frontend
@@ -422,18 +405,38 @@ demo-realtime/
     ├── vite.config.ts           # Vite config with auto base path
     ├── tsconfig.json            # TypeScript config
     └── src/
-        ├── main.tsx             # React entry point
-        ├── App.tsx              # App shell with nav bar
-        ├── theme.ts             # Theme persistence (localStorage)
-        ├── utils.ts             # JSON syntax highlighting
-        ├── index.css            # Global styles
-        ├── yeti.css             # Yeti design system
-        ├── auth.css             # Auth form styles
+        ├── main.tsx                  # React entry point
+        ├── App.tsx                   # Thin shell -- wires auth gate + page
+        ├── api.ts                    # Fetch helpers
+        ├── types.ts                  # Shared TypeScript types
+        ├── utils.ts                  # JSON syntax highlighting
+        ├── components/
+        │   └── Footer.tsx            # Shared UI primitives
+        ├── hooks/
+        │   └── useAuth.ts            # Auth state hook (template)
         ├── pages/
-        │   └── RealtimePage.tsx # Main page -- 5 protocol panels
-        └── components/
-            └── Footer.tsx       # Page footer
+        │   ├── RealtimePage.tsx      # Main page -- 5 protocol panels
+        │   └── Login.tsx             # Configurable login page (template)
+        └── styles/
+            ├── _vars.css             # Per-app brand colors and shared tokens
+            ├── yeti.css              # Canonical Yeti stylesheet
+            └── index.css             # App-specific overrides
 ```
+
+The `src/` layout is the standard yeti UI app structure: a thin `App.tsx`, root utility modules (`api.ts`, `types.ts`, `utils.ts`), shared UI in `components/`, hooks in `hooks/`, pages in `pages/` (including the bundled `Login.tsx`), and stylesheets in `styles/`. `yeti.css` is the canonical stylesheet shared across all yeti apps; `_vars.css` holds this app's brand tokens; `index.css` carries app-specific overrides.
+
+## Authentication
+
+demo-realtime is wide open by default -- the schema declares `public: [read, create, delete, subscribe, connect]` so every transport works without credentials. To require login, declare a `[package.metadata.auth]` section in `Cargo.toml` (methods, JWT, OAuth providers, role rules) and gate the dashboard with the bundled `Login.tsx` + `useAuth` hook:
+
+```tsx
+const auth = useAuth()
+if (auth === null) return <Loading/>
+if (!auth) return <Login/>
+return <RealtimePage/>
+```
+
+The `Login` component takes optional `logo`, `title`, `subtitle`, and `redirectUri` props for branding.
 
 ---
 
