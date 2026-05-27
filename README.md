@@ -258,20 +258,13 @@ interfaces:
 
 ### gRPC (Streaming)
 
-gRPC server streaming for high-performance subscriptions. Since browsers cannot speak native gRPC, the dashboard uses an SSE relay that mirrors the gRPC Subscribe RPC data path.
+gRPC is now a per-table wire format (controlled via `@export(grpc: true|false)` in
+the schema) rather than a separate server-wide service. The dashboard panel uses
+an SSE relay that mirrors the same data path the gRPC Subscribe RPC consumes.
 
-- Health check gate: panel shows "disabled" if gRPC is not enabled in the global yeti config
+- Per-table enablement via schema directive (defaults to enabled when `@export` is present)
 - Same event semantics as SSE (`update`, `delete`)
-- Production clients use native gRPC for lower overhead and binary serialization
-
-Enable gRPC in `~/yeti/yeti-config.yaml`:
-
-```yaml
-interfaces:
-  grpc:
-    enabled: true
-    port: 50051
-```
+- Browsers can't speak native gRPC, so the dashboard uses an SSE relay
 
 ### React Dashboard (Web UI)
 

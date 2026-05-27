@@ -1,14 +1,11 @@
 # Real-time Demo Schema
 # A simple Message table with automatic timestamps
 
-type Message @table(database: "demo-realtime") @export(
-    name: "message"
+type Message @table(database: "demo-realtime") @export(name: "message"
     rest: true
     sse: true
     ws: true
-    mqtt: true
-    public: [read, create, delete, subscribe, connect]
-) {
+    mqtt: true) @access(public: [read, create, delete, subscribe, connect]) {
     id: ID! @primaryKey
     title: String!
     content: String!

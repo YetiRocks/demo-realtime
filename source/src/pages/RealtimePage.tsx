@@ -281,22 +281,12 @@ export function RealtimePage() {
     } catch { setMqttStatus('disconnected') }
   }, [fetchMessages])
 
-  // gRPC (via SSE relay - browser cannot speak gRPC natively)
+  // gRPC (via SSE relay - browser cannot speak gRPC natively).
+  // Per-table gRPC export is controlled via @export(grpc: true|false)
+  // in the schema; the server-wide grpc.enabled flag was retired.
   const connectGrpc = useCallback(async () => {
     if (grpcSseRef.current) grpcSseRef.current.close()
     setGrpcStatus('connecting')
-
-    // Check if gRPC is enabled
-    try {
-      const healthRes = await fetch('/health')
-      if (healthRes.ok) {
-        const health = await healthRes.json()
-        if (!health.grpc_enabled) {
-          setGrpcStatus('disabled')
-          return
-        }
-      }
-    } catch { /* proceed */ }
 
     // Subscribe via SSE - same data path as gRPC Subscribe RPC
     const es = new EventSource(getSSEUrl())
@@ -462,17 +452,7 @@ export function RealtimePage() {
             </div>
             <span className="panel-badge">{grpcMessages.length}</span>
           </div>
-          {grpcStatus === 'disabled' ? (
-            <div className="panel-body empty-state">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
-              <p>gRPC is not enabled</p>
-              <p className="disabled-hint">Set <code>grpc.enabled: true</code> in yeti-config.yaml</p>
-            </div>
-          ) : (
-            <MessagePanelBody messages={grpcMessages} newIds={grpcNewIds} />
-          )}
+          <MessagePanelBody messages={grpcMessages} newIds={grpcNewIds} />
         </div>
 
         <div className="panel">
