@@ -19,6 +19,10 @@ const getWebSocketUrl = () => {
 
 const getSSEUrl = () => `${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/`
 
+// gRPC-Web server-streaming endpoint. `?stream=grpcweb` opts the GET into
+// the gRPC-Web framing on the same Message resource the other transports use.
+const getGrpcWebUrl = () => `${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/?stream=grpcweb`
+
 const getMqttWsUrl = () => `wss://${window.location.host}/mqtt`
 
 const SAMPLE_TITLES = [
@@ -105,7 +109,7 @@ export function RealtimePage() {
   const [grpcMessages, setGrpcMessages] = useState<Message[]>([])
   const [grpcStatus, setGrpcStatus] = useState<ConnectionStatus>('disconnected')
   const [grpcNewIds, setGrpcNewIds] = useState<Set<string>>(new Set())
-  const grpcSseRef = useRef<EventSource | null>(null)
+  const grpcAbortRef = useRef<AbortController | null>(null)
   const grpcReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const grpcInitialLoadRef = useRef(true)
 
@@ -281,36 +285,75 @@ export function RealtimePage() {
     } catch { setMqttStatus('disconnected') }
   }, [fetchMessages])
 
-  // gRPC (via SSE relay - browser cannot speak gRPC natively).
-  // Per-table gRPC export is controlled via @export(grpc: true|false)
-  // in the schema; the server-wide grpc.enabled flag was retired.
+  // gRPC-Web server streaming. The browser can't speak raw gRPC (it needs
+  // HTTP/2 trailer frames the fetch API can't read), so we consume gRPC-Web
+  // directly: a held-open response of length-prefixed envelopes
+  // `[flag:u8][len:u32 BE][payload]`. flag 0x00 = data (a JSON message),
+  // flag 0x80 = the trailer frame (grpc-status). Same Message resource as
+  // REST/SSE/WS/MQTT — only the wire framing differs.
   const connectGrpc = useCallback(async () => {
-    if (grpcSseRef.current) grpcSseRef.current.close()
+    grpcAbortRef.current?.abort()
+    const ac = new AbortController()
+    grpcAbortRef.current = ac
     setGrpcStatus('connecting')
 
-    // Subscribe via SSE - same data path as gRPC Subscribe RPC
-    const es = new EventSource(getSSEUrl())
-    grpcSseRef.current = es
-    es.onopen = () => { setGrpcStatus('connected'); fetchMessages(setGrpcMessages, grpcInitialLoadRef) }
-    es.addEventListener('update', (event) => {
+    const handleFrame = (payload: Uint8Array) => {
+      let frame: { type: string; id?: string; data?: Message }
       try {
-        const data = JSON.parse(event.data) as Message
+        frame = JSON.parse(new TextDecoder().decode(payload))
+      } catch {
+        return
+      }
+      if (frame.type === 'connected') return
+      if (frame.type === 'update' && frame.data) {
+        const data = frame.data
         setGrpcMessages(prev => {
-          if (prev.find(m => m.id === data.id)) return prev.map(m => m.id === data.id ? data : m)
+          if (prev.find(m => m.id === data.id)) return prev.map(m => (m.id === data.id ? data : m))
           if (!grpcInitialLoadRef.current) markAsNew(setGrpcNewIds, data.id)
           return [...prev, data]
         })
-      } catch {}
-    })
-    es.addEventListener('delete', (event) => {
-      try {
-        const data = JSON.parse(event.data) as { id: string }
-        setGrpcMessages(prev => prev.filter(m => m.id !== data.id))
-      } catch {}
-    })
-    es.onerror = () => {
+      } else if (frame.type === 'delete') {
+        const id = frame.data?.id ?? frame.id
+        if (id) setGrpcMessages(prev => prev.filter(m => m.id !== id))
+      }
+    }
+
+    try {
+      const resp = await fetch(getGrpcWebUrl(), {
+        headers: { Accept: 'application/grpc-web+json' },
+        signal: ac.signal,
+      })
+      if (!resp.ok || !resp.body) throw new Error(`grpc-web status ${resp.status}`)
+      setGrpcStatus('connected')
+      fetchMessages(setGrpcMessages, grpcInitialLoadRef)
+
+      const reader = resp.body.getReader()
+      let buf = new Uint8Array(0)
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) {
+          const next = new Uint8Array(buf.length + value.length)
+          next.set(buf)
+          next.set(value, buf.length)
+          buf = next
+        }
+        // Drain every complete envelope currently buffered.
+        for (;;) {
+          if (buf.length < 5) break
+          const flag = buf[0]
+          const len = ((buf[1] << 24) | (buf[2] << 16) | (buf[3] << 8) | buf[4]) >>> 0
+          if (buf.length < 5 + len) break
+          const payload = buf.slice(5, 5 + len)
+          buf = buf.slice(5 + len)
+          if ((flag & 0x80) === 0) handleFrame(payload) // skip trailer frames
+        }
+      }
       setGrpcStatus('disconnected')
-      es.close()
+      grpcReconnectRef.current = setTimeout(connectGrpc, RECONNECT_DELAY)
+    } catch {
+      if (ac.signal.aborted) return
+      setGrpcStatus('disconnected')
       grpcReconnectRef.current = setTimeout(connectGrpc, RECONNECT_DELAY)
     }
   }, [fetchMessages])
@@ -325,7 +368,7 @@ export function RealtimePage() {
     return () => {
       if (wsRef.current) wsRef.current.close(1000)
       if (sseRef.current) sseRef.current.close()
-      if (grpcSseRef.current) grpcSseRef.current.close()
+      grpcAbortRef.current?.abort()
       if (wsReconnectRef.current) clearTimeout(wsReconnectRef.current)
       if (sseReconnectRef.current) clearTimeout(sseReconnectRef.current)
       if (grpcReconnectRef.current) clearTimeout(grpcReconnectRef.current)
@@ -448,7 +491,7 @@ export function RealtimePage() {
           <div className="panel-header">
             <div className="panel-header-left">
               <StatusDot status={grpcStatus} />
-              <span className="panel-title">gRPC Stream</span>
+              <span className="panel-title">gRPC-Web Stream</span>
             </div>
             <span className="panel-badge">{grpcMessages.length}</span>
           </div>
