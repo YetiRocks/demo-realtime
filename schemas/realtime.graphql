@@ -1,7 +1,7 @@
 # Real-time Demo Schema
 # A simple Message table with automatic timestamps
 
-type Message @table(database: "demo-realtime") @export(name: "message"
+type Message @table(database: "demo-realtime") @distribute @export(name: "message"
     rest: true
     sse: true
     ws: true
