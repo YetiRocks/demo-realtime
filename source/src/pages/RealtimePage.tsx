@@ -240,7 +240,14 @@ export function RealtimePage() {
     setMqttStatus('connecting')
     setMqttMessages([])
 
-    // Check if MQTT broker is enabled before attempting connection
+    // Check if the MQTT broker is enabled, and learn the deployment this node
+    // runs under, before attempting a connection. The broker partitions its
+    // topic tree by deployment: every topic MUST carry the mandatory
+    // `d/{deployment}/` scope prefix, and a subscribe without it is DENIED. The
+    // node reports the deployment via `/health` (`deployment_hash`, e.g.
+    // `local` for a standalone node, a real hash for a composed deployment), so
+    // the same source built bundle scopes correctly at any mount/topology.
+    let deployment = 'local'
     try {
       const healthRes = await fetch('/health')
       if (healthRes.ok) {
@@ -248,6 +255,9 @@ export function RealtimePage() {
         if (!health.mqtt_enabled) {
           setMqttStatus('disabled')
           return
+        }
+        if (typeof health.deployment_hash === 'string' && health.deployment_hash) {
+          deployment = health.deployment_hash
         }
       }
     } catch { /* proceed with connection attempt */ }
@@ -260,8 +270,10 @@ export function RealtimePage() {
       mqttRef.current = client
       client.on('connect', () => {
         setMqttStatus('connected')
-        client.subscribe('demo-realtime/Message/#')
-        client.subscribe('demo-realtime/Message')
+        // Deployment-scoped broadcast topic the bridge publishes Message rows to:
+        // `d/{deployment}/{app}/{table}/{id}`. The `/#` wildcard also matches the
+        // table-level parent. An unscoped `demo-realtime/Message` subscribe is denied.
+        client.subscribe(`d/${deployment}/demo-realtime/Message/#`)
         fetchMessages(setMqttMessages, mqttInitialLoadRef)
       })
       client.on('message', (_topic: string, payload: Buffer) => {
