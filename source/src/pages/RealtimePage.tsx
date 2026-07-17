@@ -210,7 +210,7 @@ export function RealtimePage() {
     }
   }, [fetchMessages])
 
-  // REST (one-time fetch)
+  // REST (polled every 2s from the mount effect; also re-fetched after a local POST)
   const fetchRestMessages = useCallback(async () => {
     setRestStatus('connecting')
     try {
@@ -375,9 +375,14 @@ export function RealtimePage() {
     connectWebSocket()
     connectSSE()
     fetchRestMessages()
+    // REST is a POLL transport — re-fetch on an interval so it picks up messages
+    // from ANY source (not just the local POST at line 431), showing polling
+    // latency vs the push transports (WS/SSE/gRPC/MQTT).
+    const restPollInterval = setInterval(fetchRestMessages, 2000)
     connectMqtt()
     connectGrpc()
     return () => {
+      clearInterval(restPollInterval)
       if (wsRef.current) wsRef.current.close(1000)
       if (sseRef.current) sseRef.current.close()
       grpcAbortRef.current?.abort()
