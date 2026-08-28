@@ -5,7 +5,7 @@ description = "Realtime Demo"
 version = "1.0.0"
 
 [package.metadata.app]
-customer_id = "yeti"
+account_id = "yeti"
 schemas = "schemas/realtime.graphql"
 static = { path = "web", root = "/", source = "source", spa = true, build = "npm install && npm run build" }
 
