@@ -67,6 +67,18 @@
   .realtime .toolbar-right {
     margin-left: auto;
   }
+
+  /* Stacked, the five panels shared the fixed page height, about 77px each
+   * on a 700px-tall phone, so even "No messages yet" was cut off. Each panel
+   * now gets 240px (its message list scrolls inside), and the page scrolls. */
+  .page.realtime {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .realtime .main-container {
+    flex: none;
+    grid-auto-rows: 240px;
+  }
 }
 
 /* ===== Disabled state (MQTT panel) ===== */
