@@ -1,0 +1,290 @@
+# demo-realtime: the Message table over REST, GraphQL, MCP, SSE, WebSocket,
+# gRPC-Web and MQTT (schema: rest, sse, ws, mqtt). Public grant: read, create,
+# delete, subscribe, connect. Every write is a fresh `yt-*-{run}` row and each
+# is deleted again; the stream cases write a row and wait for it to be pushed.
+
+
+[[case]]
+name = "list Message"
+protocol = "http"
+path = "/api/message/?limit=2"
+[case.expect]
+status = 200
+content_type = "json"
+shape = "array"
+
+
+[[case]]
+name = "absent Message row is a problem 404"
+protocol = "http"
+path = "/api/message/yt-absent-{run}"
+[case.expect]
+status = 404
+content_type = "application/problem+json"
+shape = "problem"
+
+
+[[case]]
+name = "GraphQL list Message"
+protocol = "graphql"
+query = "{ Message(limit: 1) { id title content } }"
+[case.expect]
+status = 200
+content_type = "json"
+[[case.expect.json]]
+pointer = "/data/Message"
+type = "array"
+
+
+[[case]]
+name = "MCP initialize"
+protocol = "mcp"
+rpc = "initialize"
+[case.expect]
+status = 200
+[[case.expect.json]]
+pointer = "/result/serverInfo/name"
+type = "string"
+[[case.expect.json]]
+pointer = "/result/protocolVersion"
+type = "string"
+
+
+[[case]]
+name = "MCP tools/list names the table tools"
+protocol = "mcp"
+rpc = "tools/list"
+[case.expect]
+status = 200
+contains = "message_list"
+[[case.expect.json]]
+pointer = "/result/tools"
+type = "array"
+[[case.expect.json]]
+pointer = "/result/tools/0/name"
+type = "string"
+
+
+[[case]]
+name = "MCP tools/call message_list"
+protocol = "mcp"
+rpc = "tools/call"
+params = { name = "message_list", arguments = { limit = 1 } }
+[case.expect]
+status = 200
+[[case.expect.json]]
+pointer = "/result/isError"
+equals = false
+[[case.expect.json]]
+pointer = "/result/content/0/type"
+equals = "text"
+[[case.expect.json]]
+pointer = "/result/content/0/text"
+type = "string"
+
+
+[[case]]
+name = "MCP unknown method is a JSON-RPC error"
+protocol = "mcp"
+rpc = "no/such/method"
+[case.expect]
+status = 200
+[[case.expect.json]]
+pointer = "/error/code"
+equals = -32601
+
+
+[[case]]
+name = "create a Message"
+protocol = "http"
+method = "POST"
+path = "/api/message"
+json = { id = "yt-rest-{run}", title = "t", content = "c" }
+[case.expect]
+status = 201
+content_type = "json"
+shape = "object"
+[[case.expect.json]]
+pointer = "/id"
+equals = "yt-rest-{run}"
+[[case.expect.json]]
+pointer = "/title"
+equals = "t"
+[[case.expect.json]]
+pointer = "/content"
+equals = "c"
+
+
+[[case]]
+name = "read the created Message back"
+protocol = "http"
+path = "/api/message/yt-rest-{run}"
+mutates = true
+[case.expect]
+status = 200
+content_type = "json"
+shape = "object"
+[[case.expect.json]]
+pointer = "/content"
+equals = "c"
+
+
+[[case]]
+name = "GraphQL reads the created Message"
+protocol = "graphql"
+query = "{ Message(id: \"yt-rest-{run}\") { id title } }"
+mutates = true
+[case.expect]
+status = 200
+content_type = "json"
+[[case.expect.json]]
+pointer = "/data/Message/title"
+equals = "t"
+
+
+[[case]]
+name = "a Message without content fails validation"
+protocol = "http"
+method = "POST"
+path = "/api/message"
+json = { id = "yt-bad-{run}", title = "t" }
+[case.expect]
+status = 422
+content_type = "application/problem+json"
+shape = "problem"
+
+
+[[case]]
+name = "update is not in the public grant"
+protocol = "http"
+method = "PUT"
+path = "/api/message/yt-rest-{run}"
+json = { title = "x", content = "x" }
+[case.expect]
+status = 401
+content_type = "application/problem+json"
+shape = "problem"
+
+
+[[case]]
+name = "delete the created Message"
+protocol = "http"
+method = "DELETE"
+path = "/api/message/yt-rest-{run}"
+[case.expect]
+status = 200
+content_type = "json"
+[[case.expect.json]]
+pointer = "/id"
+equals = "yt-rest-{run}"
+
+
+[[case]]
+name = "the deleted Message is gone"
+protocol = "http"
+path = "/api/message/yt-rest-{run}"
+mutates = true
+[case.expect]
+status = 404
+content_type = "application/problem+json"
+shape = "problem"
+
+
+[[case]]
+name = "SSE opens"
+protocol = "sse"
+path = "/api/message/"
+
+
+[[case]]
+name = "gRPC-Web opens"
+protocol = "grpcweb"
+path = "/api/message/?stream=grpcweb"
+
+
+[[case]]
+name = "WebSocket opens"
+protocol = "ws"
+path = "/api/message/"
+
+
+[[case]]
+name = "MQTT subscribes to Message"
+protocol = "mqtt"
+table = "Message"
+
+
+[[case]]
+name = "sse pushes a created Message"
+protocol = "sse"
+path = "/api/message/"
+[case.write]
+path = "/api/message"
+json = { id = "yt-sse-{run}", title = "t", content = "c" }
+marker = "yt-sse-{run}"
+
+
+[[case]]
+name = "grpcweb pushes a created Message"
+protocol = "grpcweb"
+path = "/api/message/?stream=grpcweb"
+[case.write]
+path = "/api/message"
+json = { id = "yt-grpcweb-{run}", title = "t", content = "c" }
+marker = "yt-grpcweb-{run}"
+
+
+[[case]]
+name = "ws pushes a created Message"
+protocol = "ws"
+path = "/api/message/"
+[case.write]
+path = "/api/message"
+json = { id = "yt-ws-{run}", title = "t", content = "c" }
+marker = "yt-ws-{run}"
+
+
+[[case]]
+name = "MQTT publishes a created Message"
+protocol = "mqtt"
+table = "Message"
+[case.write]
+path = "/api/message"
+json = { id = "yt-mqtt-{run}", title = "t", content = "c" }
+marker = "yt-mqtt-{run}"
+
+
+[[case]]
+name = "clean up the sse Message"
+protocol = "http"
+method = "DELETE"
+path = "/api/message/yt-sse-{run}"
+[case.expect]
+status = [200, 404]
+
+
+[[case]]
+name = "clean up the grpcweb Message"
+protocol = "http"
+method = "DELETE"
+path = "/api/message/yt-grpcweb-{run}"
+[case.expect]
+status = [200, 404]
+
+
+[[case]]
+name = "clean up the ws Message"
+protocol = "http"
+method = "DELETE"
+path = "/api/message/yt-ws-{run}"
+[case.expect]
+status = [200, 404]
+
+
+[[case]]
+name = "clean up the mqtt Message"
+protocol = "http"
+method = "DELETE"
+path = "/api/message/yt-mqtt-{run}"
+[case.expect]
+status = [200, 404]

@@ -9,4 +9,8 @@ account_id = "yeti"
 schemas = "schemas/realtime.graphql"
 static = { path = "web", root = "/", source = "source", spa = true, build = "npm install && npm run build" }
 
+[package.metadata.app.tests]
+dir = "tests/yeti"
+writes = "disposable"
+
 [dependencies]
