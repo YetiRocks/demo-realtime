@@ -424,7 +424,7 @@ export function RealtimePage() {
         content: content.trim(),
         __createdAt__: new Date().toISOString()
       }
-      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message`, {
+      const response = await fetch(`${__STATIC_ROOT__}/${__RESOURCES_ROOT__}/message/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(message)

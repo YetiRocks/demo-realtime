@@ -51,7 +51,7 @@ Navigate to `https://localhost:9996/demo-realtime/` in your browser. You will se
 ### 3. Create a message via REST
 
 ```bash
-curl -s -X POST https://localhost:9996/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message/ \
   -H "Content-Type: application/json" \
   -d '{
     "id": "msg_001",
@@ -83,7 +83,7 @@ curl -N https://localhost:9996/demo-realtime/message/
 The connection stays open. Now post another message from a third terminal:
 
 ```bash
-curl -s -X POST https://localhost:9996/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message/ \
   -H "Content-Type: application/json" \
   -d '{"id": "msg_002", "title": "SSE test", "content": "Watch the other terminal"}'
 ```
@@ -200,7 +200,7 @@ All connected SSE, WebSocket, and MQTT subscribers receive a `delete` event. The
                     +-------------------+
 ```
 
-**Write path:** Client sends POST to `/demo-realtime/message` -> Yeti validates against schema -> stores in RocksDB -> PubSub broadcasts to all active subscribers (WebSocket frames, SSE events, MQTT messages) simultaneously.
+**Write path:** Client sends POST to `/demo-realtime/message/` -> Yeti validates against schema -> stores in RocksDB -> PubSub broadcasts to all active subscribers (WebSocket frames, SSE events, MQTT messages) simultaneously.
 
 **Read path:** REST GET returns records from RocksDB. Streaming transports (SSE, WebSocket, MQTT) hold open connections and receive push notifications on every write or delete.
 
@@ -233,7 +233,7 @@ Unidirectional server-push over HTTP. The browser opens an `EventSource` to the 
 Standard HTTP CRUD with JSON payloads. The dashboard fetches the full message list on demand.
 
 - `GET /demo-realtime/message/?limit=50` -- list messages
-- `POST /demo-realtime/message` -- create a message
+- `POST /demo-realtime/message/` -- create a message
 - `DELETE /demo-realtime/message/{id}` -- delete a message
 - `GET /demo-realtime/message/{id}` -- read a single message
 - `PUT /demo-realtime/message/{id}` -- update a message
@@ -329,7 +329,7 @@ From this single schema declaration, yeti generates:
 
 | Endpoint | Method | Transport | Description |
 |----------|--------|-----------|-------------|
-| `/demo-realtime/message` | POST | REST | Create a message |
+| `/demo-realtime/message/` | POST | REST | Create a message |
 | `/demo-realtime/message/?limit=N` | GET | REST | List messages |
 | `/demo-realtime/message/{id}` | GET | REST | Read one message |
 | `/demo-realtime/message/{id}` | PUT | REST | Update a message |
@@ -462,7 +462,7 @@ Output goes to `../web/` which yeti serves as static files. On restart, yeti det
 
 ```bash
 # Create
-curl -s -X POST https://localhost:9996/demo-realtime/message \
+curl -s -X POST https://localhost:9996/demo-realtime/message/ \
   -H "Content-Type: application/json" \
   -d '{"id":"test_1","title":"Test","content":"Hello"}'
 
