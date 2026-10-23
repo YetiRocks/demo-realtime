@@ -149,7 +149,7 @@ method = "POST"
 path = "/api/message"
 json = { id = "yt-bad-{run}", title = "t" }
 [case.expect]
-status = 422
+status = 400
 content_type = "application/problem+json"
 shape = "problem"
 
