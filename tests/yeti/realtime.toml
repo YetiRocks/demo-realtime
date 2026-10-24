@@ -219,7 +219,7 @@ name = "sse pushes a created Message"
 protocol = "sse"
 path = "/api/message/"
 [case.write]
-path = "/api/message"
+path = "/api/message/"
 json = { id = "yt-sse-{run}", title = "t", content = "c" }
 marker = "yt-sse-{run}"
 
@@ -229,7 +229,7 @@ name = "grpcweb pushes a created Message"
 protocol = "grpcweb"
 path = "/api/message/?stream=grpcweb"
 [case.write]
-path = "/api/message"
+path = "/api/message/"
 json = { id = "yt-grpcweb-{run}", title = "t", content = "c" }
 marker = "yt-grpcweb-{run}"
 
@@ -239,7 +239,7 @@ name = "ws pushes a created Message"
 protocol = "ws"
 path = "/api/message/"
 [case.write]
-path = "/api/message"
+path = "/api/message/"
 json = { id = "yt-ws-{run}", title = "t", content = "c" }
 marker = "yt-ws-{run}"
 
@@ -249,7 +249,7 @@ name = "MQTT publishes a created Message"
 protocol = "mqtt"
 table = "Message"
 [case.write]
-path = "/api/message"
+path = "/api/message/"
 json = { id = "yt-mqtt-{run}", title = "t", content = "c" }
 marker = "yt-mqtt-{run}"
 
